@@ -100,6 +100,52 @@ class Widget extends \yii\base\Widget
         $this->initDefaultElements();
 
         Url::remember('', self::RETURN_URL_PARAM);
+
+        $texts = [
+            'please select' => self::t('widget', 'Please select one or more items from the list.'),
+        ];
+
+        $js =<<<JS
+function gridBulkActions(self, grid) {
+    var ids = $(grid).yiiGridView('getSelectedRows'),
+        options = self.options[self.selectedIndex],
+        dataConfirm = options.getAttribute('data-confirm'),
+        dataModal = options.getAttribute('data-modal'),
+        dataContent = options.getAttribute('modal-content') || 'modal-content',
+        url = options.getAttribute('url');
+
+    if (!ids.length) {
+        alert('"{$texts['please select']}"');
+        self.value = '';
+    } else if (dataConfirm && !confirm(dataConfirm)) {
+        self.value = '';
+        return;
+    } else if (dataModal) {
+        var modal = $("#" + dataModal),
+            form = modal.find("." + dataContent + " form");
+        self.value = '';
+        $.each(ids, function(index, id) {
+            form.append('<input type=\"hidden\" name=\"' + (options.getAttribute('name') ? options.getAttribute('name') : 'ids') + '[]\" value=' + id + ' />');
+        });           
+        modal.modal("show"); 
+    } else if (url) {
+        var form = $('<form action=' + url + ' method=\"POST\"></form>'),
+            csrfParam = $('meta[name=csrf-param]').prop('content'),
+            csrfToken = $('meta[name=csrf-token]').prop('content');
+
+        if (csrfParam) {
+            form.append('<input type=\"hidden\" name=' + csrfParam + ' value=' + csrfToken + ' />');
+        }
+        
+        $.each(ids, function(index, id) {
+            form.append('<input type=\"hidden\" name=\"' + (options.getAttribute('name') ? options.getAttribute('name') : 'ids') + '[]\" value=' + id + ' />');
+        });
+        
+        form.appendTo('body').submit();
+    }
+}        
+JS;
+        $this->view->registerJs($js);
     }
 
     /**
@@ -134,12 +180,12 @@ class Widget extends \yii\base\Widget
     {
         if (!isset($this->elements['bulk-actions'])) {
             if ($this->bulkActionsPrompt === null) {
-                $this->bulkActionsPrompt = $this->t('widget', 'Bulk Actions');
+                $this->bulkActionsPrompt = self::t('widget', 'Bulk Actions');
             }
             if (empty($this->bulkActionsItems)) {
                 $this->bulkActionsItems = [
-                    $this->t('widget', 'General') => [
-                        'general-delete' => $this->t('widget', 'Delete'),
+                    self::t('widget', 'General') => [
+                        'general-delete' => self::t('widget', 'Delete'),
                     ],
                 ];
             }
@@ -151,7 +197,7 @@ class Widget extends \yii\base\Widget
                     'options' => [
                         'general-delete' => [
                             'url' => Url::toRoute('delete-multiple'),
-                            'data-confirm' => $this->t('widget', 'Are you sure you want to delete these items?'),
+                            'data-confirm' => self::t('widget', 'Are you sure you want to delete these items?'),
                         ],
                     ],
                 ]);
@@ -167,7 +213,7 @@ class Widget extends \yii\base\Widget
         }
         if (!isset($this->elements['create'])) {
             $this->elements['create'] = Html::a(
-                '<span class="glyphicon glyphicon-plus-sign"></span> ' . $this->t('widget', 'Create New'),
+                '<span class="glyphicon glyphicon-plus-sign"></span> ' . self::t('widget', 'Create New'),
                 Url::toRoute('create'),
                 ['class' => 'btn btn-default']
             );
@@ -182,13 +228,13 @@ class Widget extends \yii\base\Widget
         echo Html::beginTag('div', $this->options) . "\n";
         echo $this->renderContainer ? Html::beginTag('div', $this->containerOptions) . "\n" : '';
         foreach ($this->templates as $template => $options) {
-            if (!is_array($options)) {
-                echo $this->renderElements($options);
-            } else {
+            if (is_array($options)) {
                 echo Html::beginTag('div', $options);
-                echo $this->renderElements($template, $options);
-                echo Html::endTag('div');
+            } else {
+                echo Html::beginTag('div');
             }
+            echo $this->renderElements($template, $options);
+            echo Html::endTag('div');
         }
         echo $this->renderContainer ? Html::endTag('div') . "\n" : '';
         echo Html::endTag('div') . "\n";
@@ -211,36 +257,8 @@ class Widget extends \yii\base\Widget
             if (isset($this->elements[$name])) {
                 if ($name === 'bulk-actions' && $this->grid !== null) {
                     $id = $this->options['id'];
-                    $this->view->registerJs("$('#{$id} #{$this->_bulkActionsId}').change(function() {
-                        if (this.value) {
-                            var ids = $('#{$this->grid}').yiiGridView('getSelectedRows'),
-                                options = this.options[this.selectedIndex],
-                                dataConfirm = options.getAttribute('data-confirm'),
-                                url = options.getAttribute('url');
-
-                            if (!ids.length) {
-                                alert('" . $this->t('widget', 'Please select one or more items from the list.') . "');
-                                this.value = '';
-                            } else if (dataConfirm && !confirm(dataConfirm)) {
-                                this.value = '';
-                                return;
-                            } else if (url) {
-                                var form = $('<form action=' + url + ' method=\"POST\"></form>'),
-                                    csrfParam = $('meta[name=csrf-param]').prop('content'),
-                                    csrfToken = $('meta[name=csrf-token]').prop('content');
-
-                                if (csrfParam) {
-                                    form.append('<input type=\"hidden\" name=' + csrfParam + ' value=' + csrfToken + ' />');
-                                }
-                                $.each(ids, function(index, id) {
-                                    form.append('<input type=\"hidden\" name=\"' + (options.getAttribute('name') ? options.getAttribute('name') : 'ids') + '[]\" value=' + id + ' />');
-                                });
-                                form.appendTo('body').submit();
-                            }
-                        }
-                    });");
+                    $this->view->registerJs("$('#{$id} #{$this->_bulkActionsId}').change(function(){if(this.value){gridBulkActions(this, '#{$this->grid}')}});");
                 }
-
                 return $this->elements[$name];
             } else {
                 return '';
