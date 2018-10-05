@@ -18,10 +18,12 @@ class DeleteMultipleAction extends Action
      * @var string the model class name. This property must be set.
      */
     public $modelClass;
+
     /**
      * @var string the primary key name.
      */
     public $primaryKey = 'id';
+
     /**
      * @var callable a callback that will be called before deleting selected items.
      *
@@ -34,6 +36,7 @@ class DeleteMultipleAction extends Action
      * where `$action` is the current [[Action]] object.
      */
     public $beforeDeleteCallback;
+
     /**
      * @var callable a callback that will be called after deleting selected items.
      *
@@ -46,6 +49,7 @@ class DeleteMultipleAction extends Action
      * where `$action` is the current [[Action]] object.
      */
     public $afterDeleteCallback;
+
     /**
      * @var string|array the URL to be redirected to after deleting.
      */
@@ -70,13 +74,21 @@ class DeleteMultipleAction extends Action
      */
     public function run()
     {
+        $ids = Yii::$app->request->post('ids');
+
+        if(!$ids){
+            Yii::$app->getSession()->setFlash('error', 'Items is not selected.');
+            $this->redirect();
+            Yii::$app->end();
+        }
+
         if (isset($this->beforeDeleteCallback)) {
             call_user_func($this->beforeDeleteCallback, $this);
         }
 
         /* @var $modelClass \yii\db\ActiveRecord */
         $modelClass = $this->modelClass;
-        $models = $modelClass::findAll([$this->primaryKey => Yii::$app->request->post('ids')]);
+        $models = $modelClass::findAll([$this->primaryKey => $ids]);
         if (empty($models)) {
             throw new NotFoundHttpException(Yii::t('yii', 'Page not found.'));
         } else {
